@@ -4,7 +4,7 @@ A tiny bridge that lets you talk to a [Mistral Vibe](https://github.com/mistrala
 
 Structurally based on [ClawPod](https://github.com/algal/clawpod) by Alexis Gallagher — the iOS Shortcut is his; this just swaps the brain to Vibe.
 
-📝 **See the [blog post](https://sirtoffski.github.io/vibepod) for the full story, the how, and the why.**
+**See the [blog post](https://sirtoffski.github.io/vibepod) for the full story, the how, and the why.**
 
 ## What's here
 
