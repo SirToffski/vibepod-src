@@ -1,0 +1,75 @@
+[Unit]
+Description=VibePod - HomePod to Mistral Vibe voice bridge
+# Wait for the network: we bind to a specific LAN IP (192.168.2.53).
+# Without this, boot can race the interface assignment and the bind fails.
+After=syslog.target network-online.target tailscaled.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+
+# Run as the user who ran `vibe --setup`. Vibe reads credentials from
+# ~/.vibe/, so this MUST match the user whose ~/.vibe/ holds the API key.
+User=yourusername
+Group=yourusername
+
+# HOME must point at that user's home. systemd does not reliably set HOME
+# for system services based on User=, so we set it explicitly. Without this
+# Vibe can't find ~/.vibe/ and fails with "Missing API key".
+Environment=HOME=/home/yourusername
+Environment=PATH=/usr/local/bin:/usr/bin:/bin
+
+# --- VibePod settings -------------------------------------------------------
+Environment=VIBEPOD_HOST=0.0.0.0 # again, replace with your LAN IP if you want a cleaner approach
+Environment=VIBEPOD_PORT=7001
+# Uncomment to require a bearer token in the iOS Shortcut's Authorization header:
+# Environment=VIBEPOD_API_TOKEN=change-me-to-something-long
+
+# --- Vibe / Mistral settings ------------------------------------------------
+# VIBE_* env vars override ~/.vibe/config.toml fields directly — no config
+# file edits needed. Useful for pinning a model for the voice service while
+# keeping a different default for interactive sessions.
+# Environment=VIBE_ACTIVE_MODEL=mistral-large-latest
+
+# Restrict which Vibe tools can run (in --enabled-tools semantics: specifying
+# any tool disables all others). Leave empty for unrestricted Q&A.
+# Set to "web_search" if you want current-events answers via web lookup.
+Environment=VIBEPOD_ENABLED_TOOLS=web_search
+Environment=VIBE_SYSTEM_PROMPT_ID=voice
+Environment=VIBE_INCLUDE_COMMIT_SIGNATURE=false
+Environment=VIBE_INCLUDE_MODEL_INFO=false
+Environment=VIBE_INCLUDE_PROJECT_CONTEXT=false
+Environment=VIBE_INCLUDE_PROMPT_DETAIL=false
+Environment=VIBEPOD_MAX_TURNS=3
+Environment=VIBE_ACTIVE_MODEL=devstral-small
+# Safety cap per call. Applies against your Pro subscription's PAYG overflow
+# (after the monthly allowance resets). Keeps a runaway agentic call from
+# burning unexpected credits.
+# Environment=VIBEPOD_MAX_PRICE=0.10
+
+# Custom end-of-conversation phrases (comma-separated), matched against user
+# INPUT before any Vibe call — zero tokens consumed, instant reply.
+# Environment=VIBEPOD_END_PHRASES=goodbye,bye,that's all,done,stop listening
+
+# --- Session storage --------------------------------------------------------
+# /tmp is cleared on reboot so voice sessions start fresh after a restart.
+# Change to a persistent path (e.g. /home/yourusername/vibepod-sessions) if you
+# want conversations to survive reboots. Actual session history is always
+# stored in ~/.vibe/sessions/ regardless.
+Environment=VIBEPOD_SESSIONS_DIR=/tmp/vibepod/sessions
+
+WorkingDirectory=/home/yourusername/vibepod
+ExecStart=/usr/bin/uv run /home/yourusername/vibepod/vibepod_server.py
+
+# Restart on crash. Also catches a too-early bind that slips past ordering.
+Restart=on-failure
+RestartSec=5
+
+# Light hardening that won't interfere with Vibe's ~/.vibe/ access.
+NoNewPrivileges=true
+PrivateTmp=false   # must be false: Vibe writes to ~/.vibe/sessions, not /tmp
+# NOTE: do NOT add ProtectHome=true — Vibe's credentials and session logs
+# live in ~/.vibe/ and that would silently break auth.
+
+[Install]
+WantedBy=multi-user.target
